@@ -1,0 +1,48 @@
+volumes:
+  pg_data:
+  static:
+
+services:
+  db:
+    image: postgres:13.10
+    env_file: .env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - taski-network
+
+  backend:
+    build: ./backend/
+    env_file: .env
+    depends_on:
+      - db
+    volumes:
+      - static:/backend_static  # Подключаем volume для статики
+    restart: always
+    networks:
+      - taski-network
+
+  frontend:
+    build: ./frontend/
+    env_file: .env
+    volumes:
+      - static:/frontend_static  # Подключаем volume для статики
+    command: cp -r /app/build/. /frontend_static/
+    networks:
+      - taski-network
+
+  gateway:
+    build: ./gateway/
+    volumes:
+      - static:/staticfiles  # Подключаем volume для статики
+    ports:
+      - 8000:80
+    depends_on:
+      - backend
+    networks:
+      - taski-network
+
+networks:
+  taski-network:
+    driver: bridge

@@ -73,7 +73,6 @@ docs/_build/
 
 # PyBuilder
 target/
-
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -129,3 +128,4 @@ dmypy.json
 .pyre/
 
 frontend/node_modules
+.env
