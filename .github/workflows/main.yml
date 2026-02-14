@@ -162,25 +162,16 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v3
       
-    - name: Copy docker-compose.production.yml via ssh
+    - name: Copy files via ssh
       uses: appleboy/scp-action@master
       with:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USER }}
         key: ${{ secrets.SSH_KEY }}
         passphrase: ${{ secrets.SSH_PASSPHRASE }}
-        source: "docker-compose.production.yml"
-        target: "taski"
-        
-    - name: Copy .env file via ssh
-      uses: appleboy/scp-action@master
-      with:
-        host: ${{ secrets.HOST }}
-        username: ${{ secrets.USER }}
-        key: ${{ secrets.SSH_KEY }}
-        passphrase: ${{ secrets.SSH_PASSPHRASE }}
-        source: ".env"
-        target: "taski"
+        source: "docker-compose.production.yml,.env"
+        target: "/home/yc-user/taski"
+        strip_components: 0
         
     - name: Executing remote ssh commands to deploy
       uses: appleboy/ssh-action@master
@@ -190,21 +181,43 @@ jobs:
         key: ${{ secrets.SSH_KEY }}
         passphrase: ${{ secrets.SSH_PASSPHRASE }}
         script: |
-          cd taski
+          cd /home/yc-user/taski
+          
+          # Создаем директорию если её нет
+          mkdir -p /home/yc-user/taski
+          
+          # Проверяем наличие файлов
+          echo "=== Checking files ==="
+          ls -la
+          
           # Pull обновленных образов
+          echo "=== Pulling images ==="
           sudo docker compose -f docker-compose.production.yml pull
           
           # Перезапуск контейнеров
+          echo "=== Restarting containers ==="
           sudo docker compose -f docker-compose.production.yml down
           sudo docker compose -f docker-compose.production.yml up -d
           
+          # Ждем запуска контейнеров
+          echo "=== Waiting for containers to start ==="
+          sleep 10
+          
           # Миграции и сбор статики
-          sudo docker compose -f docker-compose.production.yml exec backend python manage.py migrate
-          sudo docker compose -f docker-compose.production.yml exec backend python manage.py collectstatic --noinput
-          sudo docker compose -f docker-compose.production.yml exec backend cp -r /app/collected_static/. /backend_static/static/
+          echo "=== Running migrations ==="
+          sudo docker compose -f docker-compose.production.yml exec -T backend python manage.py migrate
+          
+          echo "=== Collecting static files ==="
+          sudo docker compose -f docker-compose.production.yml exec -T backend python manage.py collectstatic --noinput
+          
+          echo "=== Copying static files ==="
+          sudo docker compose -f docker-compose.production.yml exec -T backend cp -r /app/collected_static/. /backend_static/static/
           
           # Очистка старых образов
+          echo "=== Cleaning up ==="
           sudo docker system prune -f
+          
+          echo "=== Deployment completed successfully ==="
 
   # Stage 7: Отправка уведомления в Telegram
   send_message:
